@@ -1,0 +1,421 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Video Stream Player</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background-color: #f0f0f0;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background-color: white;
+            border-radius: 10px;
+            padding: 20px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        h1 {
+            text-align: center;
+            color: #333;
+            margin-bottom: 30px;
+        }
+        .video-container {
+            position: relative;
+            width: 100%;
+            max-width: 800px;
+            margin: 0 auto;
+        }
+        video {
+            width: 100%;
+            height: auto;
+            max-height: 500px; /* Limit maximum height */
+            object-fit: contain;
+            border-radius: 8px;
+            box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+        }
+        .controls {
+            margin: 20px 0;
+            text-align: center;
+        }
+        input[type="url"] {
+            width: 70%;
+            padding: 10px;
+            border: 2px solid #ddd;
+            border-radius: 5px;
+            font-size: 16px;
+        }
+        button {
+            padding: 10px 20px;
+            background-color: #007bff;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 16px;
+            margin-left: 10px;
+        }
+        button:hover {
+            background-color: #0056b3;
+        }
+        .info {
+            background-color: #e7f3ff;
+            border: 1px solid #b3d9ff;
+            border-radius: 5px;
+            padding: 15px;
+            margin: 20px 0;
+        }
+        .error {
+            background-color: #ffe7e7;
+            border: 1px solid #ffb3b3;
+            border-radius: 5px;
+            padding: 15px;
+            margin: 20px 0;
+            display: none;
+        }
+        .upload-section {
+            background-color: #f8f9fa;
+            border: 2px dashed #dee2e6;
+            border-radius: 8px;
+            padding: 20px;
+            margin: 20px 0;
+            text-align: center;
+        }
+        .upload-section.dragover {
+            border-color: #007bff;
+            background-color: #e7f3ff;
+        }
+        .file-input {
+            margin: 10px 0;
+        }
+        .file-input input[type="file"] {
+            display: none;
+        }
+        .file-input label {
+            display: inline-block;
+            padding: 10px 20px;
+            background-color: #28a745;
+            color: white;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 16px;
+        }
+        .file-input label:hover {
+            background-color: #218838;
+        }
+        .progress-container {
+            width: 100%;
+            background-color: #e9ecef;
+            border-radius: 10px;
+            margin: 15px 0;
+            display: none;
+        }
+        .progress-bar {
+            width: 0%;
+            height: 25px;
+            background-color: #007bff;
+            border-radius: 10px;
+            text-align: center;
+            line-height: 25px;
+            color: white;
+            transition: width 0.3s ease;
+        }
+        .upload-status {
+            margin: 10px 0;
+            font-weight: bold;
+        }
+        .success {
+            color: #28a745;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Video Stream Player</h1>
+        
+        <div class="info">
+            <h3>Supported Video Formats:</h3>
+            <ul>
+                <li>MP4 (H.264)</li>
+                <li>WebM (VP8/VP9)</li>
+                <li>OGV (Theora)</li>
+                <li>HLS (M3U8) - for live streams</li>
+                <li>DASH - for adaptive streaming</li>
+            </ul>
+        </div>
+
+        <div class="controls">
+            <input type="url" id="videoUrl" placeholder="Enter video URL (e.g., https://example.com/video.mp4)" />
+            <button onclick="loadVideo()">Load Video</button>
+        </div>
+
+        <div class="upload-section" id="uploadSection">
+            <h3>Upload Video File</h3>
+            <p>Drag and drop a video file here, or click to select</p>
+            <div class="file-input">
+                <label for="fileInput">Choose Video File</label>
+                <input type="file" id="fileInput" accept="video/*" />
+            </div>
+            <div class="progress-container" id="progressContainer">
+                <div class="progress-bar" id="progressBar">0%</div>
+            </div>
+            <div class="upload-status" id="uploadStatus"></div>
+        </div>
+
+        <div class="error" id="errorMessage"></div>
+
+        <div class="video-container">
+            <video id="videoPlayer" controls preload="metadata">
+                <p>Your browser doesn't support HTML5 video. Please update your browser.</p>
+            </video>
+        </div>
+
+        <div class="controls">
+            <button onclick="playVideo()">Play</button>
+            <button onclick="pauseVideo()">Pause</button>
+            <button onclick="stopVideo()">Stop</button>
+            <button onclick="toggleMute()">Mute/Unmute</button>
+            <button onclick="toggleFullscreen()">Fullscreen</button>
+        </div>
+    </div>
+
+    <script>
+        const videoPlayer = document.getElementById('videoPlayer');
+        const videoUrl = document.getElementById('videoUrl');
+        const errorMessage = document.getElementById('errorMessage');
+        const fileInput = document.getElementById('fileInput');
+        const uploadSection = document.getElementById('uploadSection');
+        const progressContainer = document.getElementById('progressContainer');
+        const progressBar = document.getElementById('progressBar');
+        const uploadStatus = document.getElementById('uploadStatus');
+
+        // Sample video URLs for testing
+        const sampleUrls = [
+            'http://localhost:5152/api/Example/StreamVideo?fileName=car_traffic.mp4',
+            'http://localhost:5152/api/Example/StreamVideo?fileName=Battlefield%201%202024.11.30%20-%2015.11.31.01.mp4',
+            'http://localhost:5152/api/Example/StreamVideo?fileName=wuwa.mp4'
+        ];
+
+        function loadVideo() {
+            const url = videoUrl.value.trim();
+            
+            if (!url) {
+                showError('Please enter a video URL');
+                return;
+            }
+
+            // Hide error message
+            errorMessage.style.display = 'none';
+
+            // Set video source
+            videoPlayer.src = url;
+            
+            // Load the video
+            videoPlayer.load();
+            
+            console.log('Loading video from:', url);
+        }
+
+        function playVideo() {
+            if (videoPlayer.src) {
+                videoPlayer.play().catch(error => {
+                    showError('Error playing video: ' + error.message);
+                });
+            } else {
+                showError('Please load a video first');
+            }
+        }
+
+        function pauseVideo() {
+            videoPlayer.pause();
+        }
+
+        function stopVideo() {
+            videoPlayer.pause();
+            videoPlayer.currentTime = 0;
+        }
+
+        function toggleMute() {
+            videoPlayer.muted = !videoPlayer.muted;
+        }
+
+        function toggleFullscreen() {
+            if (document.fullscreenElement) {
+                document.exitFullscreen();
+            } else {
+                videoPlayer.requestFullscreen().catch(error => {
+                    showError('Error entering fullscreen: ' + error.message);
+                });
+            }
+        }
+
+        function showError(message) {
+            errorMessage.textContent = message;
+            errorMessage.style.display = 'block';
+        }
+
+        // Upload functionality
+        function uploadFile(file) {
+            if (!file) {
+                showError('Please select a video file');
+                return;
+            }
+
+            // Validate file type
+            if (!file.type.startsWith('video/')) {
+                showError('Please select a valid video file');
+                return;
+            }
+
+            // Show progress container
+            progressContainer.style.display = 'block';
+            uploadStatus.textContent = 'Uploading...';
+            uploadStatus.className = 'upload-status';
+
+            // Create FormData
+            const formData = new FormData();
+            formData.append('file', file);
+
+            // Create XMLHttpRequest for upload progress
+            const xhr = new XMLHttpRequest();
+
+            // Upload progress handler
+            xhr.upload.addEventListener('progress', (e) => {
+                if (e.lengthComputable) {
+                    const percentComplete = (e.loaded / e.total) * 100;
+                    progressBar.style.width = percentComplete + '%';
+                    progressBar.textContent = Math.round(percentComplete) + '%';
+                }
+            });
+
+            // Upload completion handler
+            xhr.addEventListener('load', () => {
+                if (xhr.status === 200) {
+                    uploadStatus.textContent = 'Upload completed successfully!';
+                    uploadStatus.className = 'upload-status success';
+                    
+                    // Try to parse response for video URL
+                    try {
+                        const response = JSON.parse(xhr.responseText);
+                        if (response.url || response.videoUrl) {
+                            const videoUrlFromServer = response.url || response.videoUrl;
+                            videoUrl.value = videoUrlFromServer;
+                            loadVideo();
+                        }
+                    } catch (e) {
+                        // If response is not JSON, assume it's a direct URL
+                        if (xhr.responseText.startsWith('http')) {
+                            videoUrl.value = xhr.responseText;
+                            loadVideo();
+                        }
+                    }
+                    
+                    // Reset progress after 3 seconds
+                    setTimeout(() => {
+                        progressContainer.style.display = 'none';
+                        progressBar.style.width = '0%';
+                        progressBar.textContent = '0%';
+                        uploadStatus.textContent = '';
+                    }, 3000);
+                } else {
+                    uploadStatus.textContent = 'Upload failed: ' + xhr.statusText;
+                    uploadStatus.className = 'upload-status';
+                }
+            });
+
+            // Upload error handler
+            xhr.addEventListener('error', () => {
+                uploadStatus.textContent = 'Upload failed: Network error';
+                uploadStatus.className = 'upload-status';
+            });
+
+            // Start upload - you'll need to replace this URL with your actual upload endpoint
+            xhr.open('POST', 'http://localhost:5152/api/Example/UploadFile');
+            xhr.send(formData);
+        }
+
+        // File input change handler
+        fileInput.addEventListener('change', (e) => {
+            const file = e.target.files[0];
+            if (file) {
+                uploadFile(file);
+            }
+        });
+
+        // Drag and drop functionality
+        uploadSection.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            uploadSection.classList.add('dragover');
+        });
+
+        uploadSection.addEventListener('dragleave', (e) => {
+            e.preventDefault();
+            uploadSection.classList.remove('dragover');
+        });
+
+        uploadSection.addEventListener('drop', (e) => {
+            e.preventDefault();
+            uploadSection.classList.remove('dragover');
+            
+            const files = e.dataTransfer.files;
+            if (files.length > 0) {
+                const file = files[0];
+                if (file.type.startsWith('video/')) {
+                    fileInput.files = files;
+                    uploadFile(file);
+                } else {
+                    showError('Please drop a valid video file');
+                }
+            }
+        });
+
+        // Click to select file
+        uploadSection.addEventListener('click', (e) => {
+            if (e.target === uploadSection || e.target.tagName === 'P' || e.target.tagName === 'H3') {
+                fileInput.click();
+            }
+        });
+
+        // Event listeners for video events
+        videoPlayer.addEventListener('loadstart', () => {
+            console.log('Started loading video');
+        });
+
+        videoPlayer.addEventListener('loadedmetadata', () => {
+            console.log('Video metadata loaded');
+            console.log('Duration:', videoPlayer.duration);
+            console.log('Video dimensions:', videoPlayer.videoWidth, 'x', videoPlayer.videoHeight);
+        });
+
+        videoPlayer.addEventListener('error', (e) => {
+            showError('Video error: Unable to load or play the video. Please check the URL and try again.');
+            console.error('Video error:', e);
+        });
+
+        videoPlayer.addEventListener('play', () => {
+            console.log('Video started playing');
+        });
+
+        videoPlayer.addEventListener('pause', () => {
+            console.log('Video paused');
+        });
+
+        // Load a sample video on page load
+        window.addEventListener('load', () => {
+            videoUrl.value = sampleUrls[0];
+            console.log('Page loaded with sample video URL');
+        });
+
+        // Allow Enter key to load video
+        videoUrl.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') {
+                loadVideo();
+            }
+        });
+    </script>
+</body>
+</html>
