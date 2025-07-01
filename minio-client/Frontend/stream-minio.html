@@ -42,7 +42,7 @@
             margin: 20px 0;
             text-align: center;
         }
-        input[type="url"] {
+        input[type="text"] {
             width: 70%;
             padding: 10px;
             border: 2px solid #ddd;
@@ -149,8 +149,9 @@
         </div>
 
         <div class="controls">
-            <input type="url" id="videoUrl" placeholder="Enter video URL (e.g., https://example.com/video.mp4)" />
-            <button onclick="loadVideo()">Load Video</button>
+            <input type="text" id="videoName" placeholder="car_name" />
+            <button onclick="loadVideo()">Load</button>
+            <button>Download</button>
         </div>
 
         <div class="upload-section" id="uploadSection">
@@ -173,19 +174,11 @@
                 <p>Your browser doesn't support HTML5 video. Please update your browser.</p>
             </video>
         </div>
-
-        <div class="controls">
-            <button onclick="playVideo()">Play</button>
-            <button onclick="pauseVideo()">Pause</button>
-            <button onclick="stopVideo()">Stop</button>
-            <button onclick="toggleMute()">Mute/Unmute</button>
-            <button onclick="toggleFullscreen()">Fullscreen</button>
-        </div>
     </div>
 
     <script>
         const videoPlayer = document.getElementById('videoPlayer');
-        const videoUrl = document.getElementById('videoUrl');
+        const videoName = document.getElementById('videoName');
         const errorMessage = document.getElementById('errorMessage');
         const fileInput = document.getElementById('fileInput');
         const uploadSection = document.getElementById('uploadSection');
@@ -193,16 +186,9 @@
         const progressBar = document.getElementById('progressBar');
         const uploadStatus = document.getElementById('uploadStatus');
 
-        // Sample video URLs for testing
-        const sampleUrls = [
-            'http://localhost:5152/api/Example/StreamVideo?fileName=car_traffic.mp4',
-            'http://localhost:5152/api/Example/StreamVideo?fileName=Battlefield%201%202024.11.30%20-%2015.11.31.01.mp4',
-            'http://localhost:5152/api/Example/StreamVideo?fileName=wuwa.mp4'
-        ];
-
         function loadVideo() {
-            const url = videoUrl.value.trim();
-            
+            const url = 'http://localhost:5152/api/Example/StreamVideo?fileName=' + videoName.value.trim() + '.mp4';
+
             if (!url) {
                 showError('Please enter a video URL');
                 return;
@@ -218,39 +204,6 @@
             videoPlayer.load();
             
             console.log('Loading video from:', url);
-        }
-
-        function playVideo() {
-            if (videoPlayer.src) {
-                videoPlayer.play().catch(error => {
-                    showError('Error playing video: ' + error.message);
-                });
-            } else {
-                showError('Please load a video first');
-            }
-        }
-
-        function pauseVideo() {
-            videoPlayer.pause();
-        }
-
-        function stopVideo() {
-            videoPlayer.pause();
-            videoPlayer.currentTime = 0;
-        }
-
-        function toggleMute() {
-            videoPlayer.muted = !videoPlayer.muted;
-        }
-
-        function toggleFullscreen() {
-            if (document.fullscreenElement) {
-                document.exitFullscreen();
-            } else {
-                videoPlayer.requestFullscreen().catch(error => {
-                    showError('Error entering fullscreen: ' + error.message);
-                });
-            }
         }
 
         function showError(message) {
@@ -338,6 +291,16 @@
             xhr.send(formData);
         }
 
+        function downloadFile(fileName) {
+            const url = 'http://localhost:5152/api/Example/DownloadFile?fileName=' + fileName;
+            const link = document.createElement('a');
+            link.href = url;
+            link.download = fileName;
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+        }
+
         // File input change handler
         fileInput.addEventListener('change', (e) => {
             const file = e.target.files[0];
@@ -404,14 +367,8 @@
             console.log('Video paused');
         });
 
-        // Load a sample video on page load
-        window.addEventListener('load', () => {
-            videoUrl.value = sampleUrls[0];
-            console.log('Page loaded with sample video URL');
-        });
-
         // Allow Enter key to load video
-        videoUrl.addEventListener('keypress', (e) => {
+        videoName.addEventListener('keypress', (e) => {
             if (e.key === 'Enter') {
                 loadVideo();
             }

@@ -13,7 +13,7 @@ namespace minio_client
         {
             var endpoint = "127.0.0.1:9000";
             var accessKey = "ROOTUSER";
-            var secretKey = "minio_Admin123";
+            var secretKey = "minioAdmin123";
             var secure = false;
 
             ServicePointManager.ServerCertificateValidationCallback +=
@@ -88,7 +88,7 @@ namespace minio_client
             return Ok(await minioClient.ListBucketsAsync().ConfigureAwait(false));
         }
 
-        [RequestSizeLimit(6L * 1024 * 1024 * 1024)] // 6 GB
+        [RequestSizeLimit(6L * 1024 * 1024 * 1024)] // Set file size limit to 6GB
         [HttpPost]
         public async Task<IActionResult> UploadFile(IFormFile file)
         {
@@ -175,6 +175,39 @@ namespace minio_client
         }
 
         [HttpGet]
+        public async Task<IActionResult> DownloadFileStream(string fileName)
+        {
+            var bucketName = "test-bucket";
+
+            try
+            {
+                var stat = await minioClient
+                    .StatObjectAsync(new StatObjectArgs().WithBucket(bucketName).WithObject(fileName));
+
+                Response.ContentLength = stat.Size;
+                Response.ContentType = stat.ContentType ?? "application/octet-stream";
+                Response.Headers.Append("Content-Disposition", $"attachment; filename=\"{fileName}\"");
+
+                var getObjectArgs = new GetObjectArgs()
+                    .WithBucket(bucketName)
+                    .WithObject(fileName)
+                    .WithCallbackStream(async (stream, cancellationToken) =>
+                    {
+                        await stream.CopyToAsync(Response.Body, cancellationToken).ConfigureAwait(false);
+                    });
+
+                await minioClient.GetObjectAsync(getObjectArgs);
+
+                return new EmptyResult(); // Response already written
+            }
+            catch (MinioException e)
+            {
+                Console.WriteLine("File Download Error: {0}", e.Message);
+                return StatusCode(500, new { error = e.Message });
+            }
+        }
+
+        [HttpGet]
         public async Task<IActionResult> StreamVideo(string fileName)
         {
             var bucketName = "test-bucket";
@@ -194,11 +227,13 @@ namespace minio_client
                 long start = 0, end = fileLength - 1;
                 bool isPartial = false;
 
+                // If have range header and range header start with "bytes="
                 if (!string.IsNullOrEmpty(rangeHeader) && rangeHeader.StartsWith("bytes="))
                 {
                     isPartial = true;
                     var range = rangeHeader.Replace("bytes=", "").Split('-');
                     start = long.Parse(range[0]);
+                    // if specify end for range
                     if (range.Length > 1 && !string.IsNullOrEmpty(range[1]))
                         end = long.Parse(range[1]);
                 }
@@ -234,43 +269,28 @@ namespace minio_client
                 return StatusCode(500, new { error = e.Message });
             }
         }
-
-        [HttpGet]
-        public async Task<IActionResult> Test()
-        {
-            GetObjectArgs getObjectArgs = new GetObjectArgs()
-                                     .WithBucket("test-bucket")
-                                     .WithObject("wuwa.mp4")
-                                     .WithCallbackStream((stream) =>
-                                     {
-                                         stream.CopyTo(Console.OpenStandardOutput());
-                                     });
-            await minioClient.GetObjectAsync(getObjectArgs);
-
-            return Ok("Test completed successfully.");
-        }
     }
 
-    [ApiController]
-    [Route("api/[controller]")]
-    public class ExampleFactoryController : ControllerBase
-    {
-        private readonly IMinioClientFactory minioClientFactory;
+    //[ApiController]
+    //[Route("api/[controller]")]
+    //public class ExampleFactoryController : ControllerBase
+    //{
+    //    private readonly IMinioClientFactory minioClientFactory;
 
-        public ExampleFactoryController(IMinioClientFactory minioClientFactory)
-        {
-            this.minioClientFactory = minioClientFactory;
-        }
+    //    public ExampleFactoryController(IMinioClientFactory minioClientFactory)
+    //    {
+    //        this.minioClientFactory = minioClientFactory;
+    //    }
 
-        [HttpGet]
-        [ProducesResponseType(typeof(string), StatusCodes.Status200OK)]
-        public async Task<IActionResult> GetUrl(string bucketID)
-        {
-            var minioClient = minioClientFactory.CreateClient(); //Has optional argument to configure specifics
+    //    [HttpGet]
+    //    [ProducesResponseType(typeof(string), StatusCodes.Status200OK)]
+    //    public async Task<IActionResult> GetUrl(string bucketID)
+    //    {
+    //        var minioClient = minioClientFactory.CreateClient(); //Has optional argument to configure specifics
 
-            return Ok(await minioClient.PresignedGetObjectAsync(new PresignedGetObjectArgs()
-                    .WithBucket(bucketID))
-                .ConfigureAwait(false));
-        }
-    }
+    //        return Ok(await minioClient.PresignedGetObjectAsync(new PresignedGetObjectArgs()
+    //                .WithBucket(bucketID))
+    //            .ConfigureAwait(false));
+    //    }
+    //}
 }
